@@ -33,6 +33,7 @@
             xmlFilePathLabel = new Label();
             startOrStopBtn = new Button();
             label1 = new Label();
+            button1 = new Button();
             SuspendLayout();
             // 
             // fileSelector
@@ -77,11 +78,22 @@
             label1.TabIndex = 3;
             label1.Text = "label1";
             // 
+            // button1
+            // 
+            button1.Location = new Point(599, 264);
+            button1.Name = "button1";
+            button1.Size = new Size(131, 40);
+            button1.TabIndex = 4;
+            button1.Text = "播放测试";
+            button1.UseVisualStyleBackColor = true;
+            button1.Click += button1_Click;
+            // 
             // Form1
             // 
             AutoScaleDimensions = new SizeF(13F, 28F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(800, 450);
+            Controls.Add(button1);
             Controls.Add(label1);
             Controls.Add(startOrStopBtn);
             Controls.Add(xmlFilePathLabel);
@@ -99,5 +111,6 @@
         private Label xmlFilePathLabel;
         private Button startOrStopBtn;
         private Label label1;
+        private Button button1;
     }
 }

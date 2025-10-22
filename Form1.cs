@@ -1,9 +1,8 @@
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
-using FlaUI.Core.EventHandlers;
 using FlaUI.UIA3;
-using System;
-using System.Linq;
+using NAudio.Wave;
+using System.Speech.Synthesis;
 using System.Timers;
 using System.Xml.Linq;
 
@@ -15,6 +14,9 @@ namespace PrinterMoniter
         private UIA3Automation? _automation;
         private System.Timers.Timer? _timer;
         private readonly HashSet<IntPtr> _processedWindows = new();
+        private readonly Queue<Action> _playQueue = new Queue<Action>();
+        private bool _isPlaying = false;
+        private readonly object _lock = new object();
         public Form1()
         {
             InitializeComponent();
@@ -22,7 +24,6 @@ namespace PrinterMoniter
 
         private void selectFileBtn_Click(object sender, EventArgs e)
         {
-            // 调用 ShowDialog() 方法显示文件选择对话框
             if (fileSelector.ShowDialog() == DialogResult.OK)
             {
                 xmlFilePathLabel.Text = fileSelector.FileName;
@@ -138,7 +139,7 @@ namespace PrinterMoniter
         {
             if (string.IsNullOrEmpty(title)) return false;
 
-            string[] keywords = {"状态消息", "维护", "支付完成"};
+            string[] keywords = { "状态消息", "维护", "支付完成" };
 
             return keywords.Any(k => title.Contains(k, StringComparison.OrdinalIgnoreCase));
         }
@@ -181,8 +182,8 @@ namespace PrinterMoniter
                 // 查找所有文本、按钮、编辑框
                 var elements = window.FindAllDescendants(cf =>
                     cf.ByControlType(ControlType.Text)
-                    //.Or(cf.ByControlType(ControlType.Button))
-                    //.Or(cf.ByControlType(ControlType.Edit))
+                //.Or(cf.ByControlType(ControlType.Button))
+                //.Or(cf.ByControlType(ControlType.Edit))
                 );
 
                 foreach (var element in elements)
@@ -224,6 +225,115 @@ namespace PrinterMoniter
             {
                 Console.WriteLine($"读取配置失败: {ex.Message}");
                 return new List<SimplePaperStatistical>();
+            }
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            SpeakText("剩余数量10张");
+            Delay(1000);
+            PlayAudio("./test.mp3");
+            SpeakText("播放完成");
+        }
+
+        // 播放TTS
+        private void SpeakText(string text)
+        {
+            lock (_lock)
+            {
+                _playQueue.Enqueue(() => PlayTtsInternal(text));
+                StartProcessing();
+            }
+        }
+
+        // 播放音频文件
+        private void PlayAudio(string filePath)
+        {
+            lock (_lock)
+            {
+                _playQueue.Enqueue(() => PlayAudioInternal(filePath));
+                StartProcessing();
+            }
+        }
+
+        public void Delay(int milliseconds)
+        {
+            lock (_lock)
+            {
+                _playQueue.Enqueue(() => Thread.Sleep(milliseconds));
+                StartProcessing();
+            }
+        }
+
+        private void StartProcessing()
+        {
+            if (!_isPlaying)
+            {
+                _isPlaying = true;
+                Task.Run(ProcessQueue);
+            }
+        }
+
+        private void ProcessQueue()
+        {
+            while (true)
+            {
+                Action? action = null;
+
+                lock (_lock)
+                {
+                    if (_playQueue.Count == 0)
+                    {
+                        _isPlaying = false;
+                        return;
+                    }
+                    action = _playQueue.Dequeue();
+                }
+
+                try
+                {
+                    action?.Invoke();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"播放失败: {ex.Message}");
+                }
+            }
+        }
+
+        private void PlayTtsInternal(string text)
+        {
+            try
+            {
+                using var synth = new SpeechSynthesizer();
+                synth.SetOutputToDefaultAudioDevice();
+                synth.Rate = 0;
+                synth.Volume = 100;
+                synth.Speak(text);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"TTS播放失败: {ex.Message}");
+            }
+        }
+
+        private void PlayAudioInternal(string filePath)
+        {
+            try
+            {
+                using var audioFile = new AudioFileReader(filePath);
+                using var outputDevice = new WaveOutEvent();
+                outputDevice.Init(audioFile);
+                outputDevice.Play();
+
+                while (outputDevice.PlaybackState == PlaybackState.Playing)
+                {
+                    Thread.Sleep(100);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"音频播放失败: {ex.Message}");
             }
         }
     }
